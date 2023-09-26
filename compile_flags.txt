@@ -1,0 +1,5 @@
+-Wall
+-std=c11
+-D_CRT_SECURE_NO_WARNINGS
+-Wno-c99-designator
+-Wno-microsoft-goto

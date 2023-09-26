@@ -1,0 +1,26 @@
+
+
+struct FILE {
+    placeholder: rawptr,
+}
+
+
+const SEEK_CUR      = 1;
+const SEEK_END      = 2;
+const SEEK_SET      = 0;
+
+
+let stdin:  *FILE = __acrt_iob_func(0);
+let stdout: *FILE = __acrt_iob_func(1);
+let stderr: *FILE = __acrt_iob_func(2);
+
+
+extern fn __acrt_iob_func(handle: u64): *FILE;
+
+extern fn fwrite(buffer: rawptr, elem_size: u64, elem_count: u64, file: *FILE): u64;
+
+extern fn fread(buffer: rawptr, elem_size: u64, elem_count: u64, file: *FILE): u64;
+
+extern fn fgetc(file: *FILE): u32;
+
+extern fn fputc(character: u8, file: *FILE): u32;

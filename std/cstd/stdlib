@@ -1,0 +1,4 @@
+
+
+extern fn malloc(size: u64) : rawptr
+extern fn free(ptr: rawptr)

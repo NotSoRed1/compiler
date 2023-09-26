@@ -1,0 +1,28 @@
+
+import "std/io";
+
+
+fn main(): i32 {
+    let number: i64 = 235;
+    let tries: u32 = 10;
+
+    println("guess a number between 0 and 1000\n", []);
+    while tries {
+        print("enter a number: ", []);
+        let res = read_int(10); 
+        if res < number {
+            println("Too low, guess a higher number!", []);
+        } else if res > number {
+            println("Too high, guess a lower number!", []);
+        } else {
+            println("You won!", []);
+            return 0;
+        }
+
+        tries -= 1;
+    }
+
+    println("You lost!", []);
+
+    return 0;
+}

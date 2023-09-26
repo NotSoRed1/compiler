@@ -1,0 +1,446 @@
+import "./cstd/stdio";
+import "./cstd/stdlib";
+import "./builtin";
+
+// note(redone): the print functions can only take up to 16 argument
+// because I still don't have slices or variadic arguments yet
+// this will be changed once I add these features.
+
+fn print(format: cstr, args: any[16]) {
+    let formated = sprint(format, args);
+    defer string_free(&formated);
+
+    fwrite(formated.data, 1, formated.length, stdout);
+}
+
+
+fn println(format: cstr, args: any[16]) {
+    let formated = sprintln(format, args);
+    defer string_free(&formated);
+
+    fwrite(formated.data, 1, formated.length, stdout);
+}
+
+
+fn sprint(format: cstr, args: any[16]): string {
+    let writer = format_arguments(format, args);
+    defer writer_free(&writer);
+
+    let result = string_from_buffer(writer.buffer, writer.cursor);
+    return result;
+}
+
+
+fn sprintln(format: cstr, args: any[16]): string {
+    let writer = format_arguments(format, args);
+    defer writer_free(&writer);
+
+    writer_write_byte(&writer, 10);
+
+    let result = string_from_buffer(writer.buffer, writer.cursor);
+    return result;
+}
+
+
+
+fn read_line(): string {
+    let writer = writer_init();
+    defer writer_free(&writer);
+
+    let c = fgetc(stdin);
+    while c != '\n' {
+        writer_write_byte(&writer, c as u8);
+        c = fgetc(stdin);
+    } 
+
+    let result = string_from_buffer(writer.buffer, writer.cursor);
+    return result;
+}
+
+
+fn read_byte(): u8 {
+    return fgetc(stdin) as u8;
+}
+
+fn read_uint(base: u8): u64 {
+    let number_string = read_line();
+    defer string_free(&number_string);
+
+    let result = parse_uint(number_string, base);
+    return result;
+}
+
+fn read_int(base: u8): i64 {
+    let number_string = read_line();
+    defer string_free(&number_string);
+
+    let result = parse_int(number_string, base);
+    return result;
+}
+
+
+
+fn format_arguments(format: cstr, args: any[16]): Writer {
+    let writer = writer_init();
+
+    let curr_arg = 0;
+    for let i: u64 = 0; i < format.length; i += 1 {
+        if curr_arg >= 16 {
+            string_print("too many format arguments. \n" as string);
+        }
+
+        if format[i] == 123 {// {
+            if (parse_argument_format_settings(format, &i) == false) {
+                return writer;
+            }
+
+            format_argument(&writer, args[curr_arg]);
+            curr_arg += 1;
+        } else {
+            writer_write_byte(&writer, format[i]);
+        }
+    }
+
+    return writer;
+}
+
+
+fn parse_argument_format_settings(format: cstr, index: *u64): bool {
+
+    // check if the index at the end of the format string
+    if *index == format.length - 1 { 
+        let err_msg = "Invalid format string. \n" as string;
+        defer string_free(&err_msg);
+
+        string_print(err_msg);
+        return false;
+    }
+
+    // expect a closing curly brace.
+    *index += 1;
+    if (format[*index] != 125) { // }
+        let err_msg = "Invalid format string. Expected a }.\n" as string;
+        defer string_free(&err_msg);
+
+        string_print(err_msg);
+        return false;
+    }
+
+    return true;
+}
+
+fn format_argument(w: *Writer, arg: any) {
+    let info = get_type_info(arg.id);
+    if info.kind == TypeInfoKind.Integer {
+        format_integer(w, arg, info);
+    } else if info.kind == TypeInfoKind.Boolean {
+        format_boolean(w, arg, info);
+    } else if info.kind == TypeInfoKind.Pointer 
+        || info.kind == TypeInfoKind.RawPointer {
+        format_pointer(w, arg, info);
+    } else if info.kind == TypeInfoKind.Struct {
+        if arg.id == typeid(:string) {
+            format_string(w, arg, info);
+        } else if arg.id == typeid(:cstr) {
+            format_string(w, arg, info);
+        } else {
+            format_struct(w, arg, info);
+        }
+    } else {
+    }
+}
+
+fn format_pointer(w: *Writer, arg: any, info: *TypeInfo) {
+    let pointer = arg.data as *u64;    
+    let value = uint_to_string(*pointer, 16);
+    defer string_free(&value);
+    writer_write_cstr(w, "0x");
+    writer_write_string(w, value);
+}
+
+
+fn ptr_add(ptr: rawptr, offset: u32): rawptr {
+    return ((ptr as u64) + (offset as u64)) as rawptr;
+}
+
+
+fn format_struct(w: *Writer, arg: any, info: *TypeInfo) {
+    let members_count = info.info.compound.members_count;
+
+    writer_write_cstr(w, "{ ");
+    for let i: u32 = 0; i < members_count; i += 1 {
+        let member = info.info.compound.members[i];
+
+        let member_name = member.name;
+        let member_data_ptr = ptr_add(arg.data, member.offset) as *rawptr;
+
+
+        writer_write_string(w, member.name);
+        writer_write_cstr(w, ": ");
+        format_argument(w, any {data: member_data_ptr, id: member.type});
+        if i < members_count - 1 {
+            writer_write_cstr(w, ", ");
+        }
+    }
+    writer_write_cstr(w, " }");
+}
+
+
+fn format_string(w: *Writer, arg: any, info: *TypeInfo) {
+    let string_ptr = arg.data as *string;    
+    writer_write_string(w, *string_ptr);
+}
+
+fn format_cstr(w: *Writer, arg: any, info: *TypeInfo) {
+    let string_ptr = arg.data as *cstr;    
+    writer_write_cstr(w, *string_ptr);
+}
+
+fn format_integer(w: *Writer, arg: any, info: *TypeInfo) {
+    let integer_info = info.info.integer;
+    if (integer_info.is_signed == true) {
+        let value: i64 = 0;
+        if (info.size == 1) {
+            let number = *(arg.data as *i8);
+            value = number as i64;
+        } else if (info.size == 2) {
+            let number = *(arg.data as *i16);
+            value = number as i64;
+        } else if (info.size == 4) {
+            let number = *(arg.data as *i32);
+            value = number as i64;
+        } else if (info.size == 8) {
+            let number = *(arg.data as *i64);
+            value = number as i64;
+        }
+
+        let value_string = int_to_string(value, 10);
+        defer string_free(&value_string);
+
+        writer_write_string(w, value_string);
+    } else {
+        let value: u64 = 0;
+        if (info.size == 1) {
+            let number = *(arg.data as *u8);
+            value = number as u64;
+        } else if (info.size == 2) {
+            let number = *(arg.data as *u16);
+            value = number as u64;
+        } else if (info.size == 4) {
+            let number = *(arg.data as *u32);
+            value = number as u64;
+        } else if (info.size == 8) {
+            let number = *(arg.data as *u64);
+            value = number as u64;
+        }
+
+        let value_string = uint_to_string(value, 10);
+        defer string_free(&value_string);
+
+        writer_write_string(w, value_string);
+    }
+}
+
+fn format_boolean(w: *Writer, arg: any, info: *TypeInfo) {
+    let boolean_value = arg.data as *bool;
+
+    if (*boolean_value == true) {
+        writer_write_cstr(w, "true");
+    } else {
+        writer_write_cstr(w, "false");
+    }
+}
+
+
+struct Writer {
+    buffer: *u8,
+    cursor: u64,
+    capacity: u64,
+}
+
+
+fn writer_init(): Writer {
+    let res = Writer {};
+    res.buffer = malloc(128) as *u8;
+    res.cursor = 0;
+    res.capacity = 128;
+
+    return res;
+}
+
+
+fn writer_free(w: *Writer) {
+    free(w.buffer);
+    w.capacity = 0;
+    w.cursor = 0;
+}
+
+
+fn writer_write_byte(w: *Writer, byte: u8) {
+    if w.cursor >= w.capacity {
+        let old = w.buffer;
+        w.buffer = malloc(w.capacity + w.capacity / 2) as *u8;
+
+        for let i: u64 = 0; i < w.cursor; i += 1 {
+            w.buffer[i] = old[i];
+        }
+
+        free(old);
+    }
+
+    w.buffer[w.cursor] = byte;
+    w.cursor += 1;
+}
+
+
+fn writer_write_string(w: *Writer, str: string) {
+    for let i: u64 = 0; i < str.length; i += 1 {
+        writer_write_byte(w, str[i]);
+    }
+}
+
+fn writer_write_cstr(w: *Writer, str: cstr) {
+    for let i: u64 = 0; i < str.length; i += 1 {
+        writer_write_byte(w, str[i]);
+    }
+}
+
+fn uint_to_string(number: u64, base: u8): string {
+    if (number == 0) {
+        return "0" as string;
+    }
+
+    let digit_table = "0123456789abcdef";
+
+    let buffer = malloc(20) as *u8;
+    for let i = 0; i < 20; i += 1 {
+        buffer[i] = 32;
+    }
+
+    let index: u64 = 0;
+    while number > 0 {
+        let digit: u8 = (number % base as u64) as u8;
+        buffer[index] = digit_table[digit];
+
+        number /= base as u64;
+        index += 1;
+    }
+
+    let size = index;
+    let result = malloc(size) as *u8;
+
+    for let i: u64 = 0; i <= size; i += 1 {
+        result[i] = buffer[size - i - 1];
+    }
+
+    free(buffer);
+    return string_from_buffer(result, size);
+}
+
+
+fn int_to_string(number: i64, base: u8): string {
+    if (number == 0) {
+        return "0" as string;
+    }
+
+    let digit_table = "0123456789abcdef";
+
+
+    let buffer = malloc(20) as *u8;
+    for let i = 0; i < 20; i += 1 {
+        buffer[i] = 32;
+    }
+
+    let index: u64 = 0;
+    let is_negative = false;
+    if number < 0 {
+        number = -number;
+        is_negative = true;
+    }
+
+    while number > 0 {
+        let digit: u8 = (number % base as i64) as u8;
+        buffer[index] = digit_table[digit];
+
+        number /= base as i64;
+        index += 1;
+    }
+
+    if (is_negative) {
+        buffer[index] = 45;
+        index += 1;
+    }
+
+    let size = index;
+    let result = malloc(size) as *u8;
+
+    for let i: u64 = 0; i <= size; i += 1 {
+        result[i] = buffer[size - i - 1];
+    }
+
+    free(buffer);
+    return string_from_buffer(result, size);
+}
+
+
+fn convert_digit_to_number(digit: u8, base: u8): u8 {
+    let digit_table = "0123456789abcdef";
+
+    for let i: u8 = 0; i < base; i += 1 {
+        if digit_table[i] == digit {
+            return i;
+        }
+    }
+
+    return 255;
+}
+
+fn parse_uint(str: string, base: u8): u64 {
+    let result: u64 = 0;
+    for let i: u64 = 0; i < str.length; i += 1 {
+        let digit = str[i];
+        let digit_num = convert_digit_to_number(digit, base);
+
+        if digit_num == 255 {
+            println("Invalid base {} digit was found.", [base]);
+            return 0;
+        }
+
+        result = result * base as u64 + digit_num as u64; 
+    }
+
+    return result;
+}
+
+
+fn parse_int(str: string, base: u8): i64 {
+    if str.length == 0 {
+        return 0;
+    }
+
+    let negative: i64 = 1;
+    let start: u64 = 0;
+
+    if str[0] == '-' {
+        negative = -1;
+        start = 1;
+    }
+
+    let result: i64 = 0;
+    for let i: u64 = start; i < str.length; i += 1 {
+        let digit = str[i];
+        let digit_num = convert_digit_to_number(digit, base);
+
+        if digit_num == 255 {
+            println("Invalid base {} digit was found.", [base]);
+            return 0;
+        }
+
+        result = result * base as i64 + digit_num as i64; 
+    }
+
+    return negative * result;
+}
+
+
+

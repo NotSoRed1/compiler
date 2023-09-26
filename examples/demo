@@ -1,0 +1,381 @@
+
+// import statement will import the all the symbols of the the given file into the this 
+// file scope
+// 
+// library import
+// 
+// this will search additional import paths + current directory of the file
+// to find the imported file
+import "std/fmt";
+import "std/cstd/stdio";
+// 
+// relative import
+// this will look for the imported file in the directory of the this file.
+import "./fibonacci"; // will look for a file called fibonacci in the this file directory
+import "../other"; // will look for a file called other in the parent dir of the this file directory
+// the compiler consider every import that start with a "." a relative import.
+// 
+
+
+// struct declaration
+struct SomeStruct {
+    x: f32,
+    y: f32,
+    number: Number,
+}
+
+
+// union declaration
+// unions in 
+union Number {
+    kind: NumberKind, // order of types declarations doesn't matter, even if the NumberType enum
+                      // is declared after it's being used it's okay, because the compiler
+                      // sort the global decls before checking them.
+    float_: f64,
+    integer: u32,
+}
+
+
+// enum decls
+enum NumberKind {
+    Float,
+    Integer,
+}
+
+// function decl
+fn some_function(arg1: u32, arg2: u32): u32 {
+    return arg1 + arg2;
+}
+
+// global variables
+// global variables are initialized in the start of the main function.
+let x: u32 = 10;
+const y: u32 = 15;
+
+
+// external function and variables
+// you can define external functions and variables using the extern keyword
+extern fn extern_func(): u32; // external function declarations can't have bodies
+extern let x: u32; // you can't intialize external variables too.
+
+
+
+// entry function of the program
+fn main(): i32 {
+
+    // ===========================================
+    // ============ builtin types ================
+    // ===========================================
+    // 
+    //      i8, i16, i32, i64
+    //      u8, u16, u32, u64
+    //      f32, f64
+    // 
+    //      cstr, string 
+    //      rawptr (like void* in c)
+    //      any
+    //      fn (function pointer)
+    // 
+    //      enums, unions, structs, arrays
+    //
+
+
+
+    // ==================================================
+    // ============ variable declaration ================
+    // ==================================================
+    // 
+    // you can declare new variable using the let keyword
+    let var1: u32 = 0;
+
+
+
+    // ==============================================
+    // ============ const declaration ================
+    // ==============================================
+    // 
+    //
+    // you can const variable using the const keyword
+    // consts are just compile time known variables
+    const const1: u64 = 0;
+    const const2: u64 = const1; // this evaluated at compile time
+    const const3: u32 = var1; // this is an error, because var is not a const variable
+    const const4 = SomeStruct {x: 10.0}; // this is a valid declaration as long as all the
+                                        // initialized members are initialized with a comptime
+                                        // known value or a const 
+    const const5: f32 = const4.x; // this is also valid because the const4 is const so all it's members
+                                 // are comptime known.
+    // same with arrays too.
+    const const6 = [10, 20, 30];
+    const const7: i32 = const6[0];
+    
+
+
+
+    // ==============================================
+    // ============ type inference ==================
+    // ==============================================
+    // 
+    // the compiler can infer the type of the variable in most of the 
+    // cases, so you can declare variables without a given type.
+    // 
+    let untyped = 10; // the default type of integer literal is i32
+    let untyped2 = 2.0; // the default type of float literal is f32
+    //
+    let untyped3 = some_function(); // the type of untyped3 will be the return type of the function.
+    let untyped4 = SomeStruct {};
+    // 
+    let untyped3 = "string literal"; // the default type of string literal is cstr
+    // 
+    // you can always make cast string literal to string type 
+    // but string types allocate memory in the heap so you need
+    // to free the string manually.
+    let string0 = "string0" as string;
+    defer string_free(&string0);
+
+
+
+
+    // ==============================================
+    // ================== pointers ==================
+    // ==============================================
+    // 
+    let x: u32 = 10;
+    let pointer: *u32 = &x; // you can address of a variable using the '&' operator
+    let dereferend: u32 = *pointer; // you can dereference a pointer using the '*' operator
+    // 
+    // you can also get the adress of an rvalue
+    // the compiler will create temporary variable to hold the 
+    // the actual value of the variable
+    let rvalue_ptr1 = &10;
+    let rvalue_ptr2 = &SomeStruct {x: 10.0, y: 20.0}; // same goes for struct and unions and arrays
+
+
+
+
+    // ==============================================
+    // =================== arrays ===================
+    // ==============================================
+    // 
+    let array0: u32[3] = [];
+    let array1: i32[2] = [10, 20];
+    let array3 = [30, 20, 10]; // type of array3 is <i32[3]> becaus the integer literal default type type is i32
+    let array4 = [30 as u64, 20, 10] // type of array4 is <u64[3]> because the type of the first element is u64
+                                    // the compiler can use the that to infer the type of the array4 is u64[3]
+    // you can access the elements of the array using the [] operator
+    let elem0 = array1[0];
+    let elem1 = array1[1];
+
+
+
+
+    // =====================================================
+    // ================ structs and unions =================
+    // =====================================================
+    // 
+    // because the language doesn't support unammed struct and unions (for now)
+    // the struct initializers require you to specify the struct/unions name.
+    let struct0: SomeStruct = SomeStruct {x: 10.0, y: 10.0};
+    let struct1: SomeStruct = SomeStruct {x: 20.0};
+    let struct2 = SomeStruct {};
+    let union0 = Number {kind: NumberKind.Integer, integer: 10 };
+    //
+    // you can access the members othe struct using the dot operator
+    let member_kind = union0.kind;
+    // you can also access member of struct pointer using the dot operator
+    let struct_ptr = &struct0;
+    let member_x = struct_ptr.x;
+
+
+
+
+
+
+    // =======================================
+    // ================ defer ================
+    // =======================================
+    //
+    // you can defer statements to be executed at the end of the scope
+    defer some_function();
+    defer {
+        function1(); 
+        let x = 10;
+        function2(x);
+    };
+
+    
+
+
+
+    // =======================================
+    // ============ control flow =============
+    // =======================================
+    // 
+    let x = some_function();
+    if (x == 0) {
+        do_sth();
+    } else if x == 1 { // parentheses  aren't required
+        do_sth2();
+    } else {
+        do_sth_else();
+    }
+
+
+
+
+    // =======================================
+    // ============ while loops  =============
+    // =======================================
+    // 
+    while true {
+        do_sth();
+    }
+    
+    let x = 10;
+    while x {
+        if (x == 5) {
+            break;
+        }
+
+        println("number: {}", [x]);
+        x -= 1;
+    }
+
+
+
+
+
+    // =======================================
+    // ============= for loops  ==============
+    // =======================================
+    // 
+    for (let i: u32 = 0; i < 2; i += 1) {
+        println("number {}", [i]);
+    }
+
+    let i = 0;
+    for ; i < 10; i += 1 {
+        do_sth();
+    }
+
+
+    for let i: u32 = 0; i < 5; {
+        do_sth();
+        i += 1;
+    }
+
+    let index = 0;
+    for ;; { // like while true
+        some_function();
+        if index == 10 {
+            break;
+        } else {
+            continue;
+        }
+
+        index += 1;
+    }
+
+
+    // ==============================================
+    // ============= function pointers ==============
+    // ==============================================
+    // 
+    let func_ptr0: fn(): i32 = main;
+    let func_ptr1: fn(u32, u32): u32 = add_u32;
+    // 
+    // call the function pointer
+    let result = func_ptr1(10, 10);
+
+
+
+    // =======================================
+    // =============- type_id ================
+    // =======================================
+    // 
+    // you can get the type id of any type or expression 
+    // using the builtin typeid() method
+    let x: u32 = 10;
+    let typeid0 = typeid(x); // this return the type_id of the x variable type
+    // 
+    // to get the type_id of the type directly you can use the ':' before the expression
+    let typeid1 = typeid(:u32); // return the type id of the u32 type
+    let typeid2 = typeid(:fn(u32, u32): u32); // this return the type id of this function pointer type
+
+
+
+
+
+    // =======================================
+    // =============- size_of ================
+    // =======================================
+    // 
+    // you can get the size of any type or expression 
+    // using the builtin sizeof() method
+    let x: u32 = 10;
+    let typeid0 = sizeof(x); // this return the size of of the x variable type
+    let y: SomeStruct;
+    let typeid1 = sizeof(y); // this return the size of of the x variable type
+    // 
+    // same for sizeof() if you want to get the size of type directly you can 
+    // use ':' before the expression to specify that the argument is type specifier
+    let typeid2 = sizeof(:SomeStruct); // return the size of the struct named SomeStruct.
+    let typeid3 = sizeof(:u32); // this return the size of the u32 type.
+
+
+
+    // =============================================
+    // ============= runtime type-info =============
+    // =============================================
+    // 
+    // you can get the type information of any type 
+    // at runtime.
+    // this is very usefull especially for formatting and serialization 
+    // for example this can be used to serialize your game structs into 
+    // a json file.
+    // you can get take a look at the builtin file in the std library
+    // to see what informations are available to you to use.
+    // 
+    // I will try to create docs and examples for runtime type-info stuff 
+    // for people who intersted in this, for now you can take a look at the 
+    // std/io file in the std dir to see how I use the runtime type-info 
+    // to create the print and println functions.
+    //
+    // to get the type_info of a given type you can used the get_type_info
+    // function it takes a type id and return a pointer to a TypeInfo struct
+    // that contains informations about the type
+    //
+    let info: *TypeInfo = get_type_info(typeid(:u32));
+    prinln("u32 type {size: {}, alignment: {}}", [info.size, info.alignment]);
+
+
+
+
+    // =======================================
+    // ============= the any type ============
+    // =======================================
+    // 
+    // all types can be casted to builtin any type
+    // any type is just struct with a pointer to the actual data and
+    // a type id.
+    //
+    // it's mainly used with the runtime type-info to do serialization and 
+    // formating, don't use it unless you know what you are doing!
+    let x = 10;
+    let any0: any = x;
+
+    let any0: any = 10; // this will create a temporary variable in the current
+                        // scope to store 10 and the any struct will point of the
+                        // the adress of the created variable.
+    // array of any
+    let anyarray: any[3] = [10, "string", true];
+
+
+
+
+    return 0;
+}
+
+
+
+

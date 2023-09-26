@@ -1,0 +1,79 @@
+import "./string";
+import "./cstd/stdlib";
+import "./cstd/stdio";
+
+struct any { 
+    id: u64,
+    data: rawptr
+}
+
+struct TypeInfo {
+    kind: TypeInfoKind,
+    size: u32,
+    alignment: u32,
+    info: TypeInfoUnion,
+}
+
+enum TypeInfoKind {
+    None,
+    Function,
+    Integer,
+    Boolean,
+    Float,
+    RawPointer,
+    Pointer,
+    Array,
+    Struct,
+    Union,
+    Enum,
+}
+
+union TypeInfoUnion {
+    function:    FunctionTypeInfo,
+    integer:     IntegerTypeInfo,
+    pointer:     PointerTypeInfo,
+    array:       ArrayTypeInfo,
+    compound:    CompoundTypeInfo,
+}
+
+struct FunctionTypeInfo {
+    arguments: *u64,
+    arguments_count: u32,
+    ret_type: u64,
+}
+
+struct IntegerTypeInfo {
+    is_signed: bool,
+}
+
+struct PointerTypeInfo { 
+    base: u32
+}
+
+struct ArrayTypeInfo {
+    base: u64,
+    length: u64,
+}
+
+struct MemberTypeInfo {
+    name: string,
+    type: u64,
+    offset: u32,
+}
+
+struct CompoundTypeInfo {
+    members: *MemberTypeInfo,
+    members_count: u32,
+}
+
+let type_infos : **TypeInfo;
+let type_infos_count: u64;
+
+
+fn get_type_info(id: u64): *TypeInfo {
+    if id as u64 >= type_infos_count {
+         return 0 as *TypeInfo;
+    }
+
+    return type_infos[id];
+}

@@ -1,0 +1,63 @@
+import "./cstd/stdlib";
+
+
+struct cstr {
+    data: *u8,
+    length: u64,
+}
+
+fn cstr_from_buffer(ptr: rawptr, length: u64): cstr {
+    return cstr {data: ptr as *u8, length: length};
+}
+
+
+
+struct string {
+    data: *u8,
+    length: u64,
+}
+
+fn string_from_buffer(ptr: rawptr, length: u64): string {
+    let buffer: *u8 = malloc(length + 1 as u64) as *u8;
+
+    let temp: *u8 = ptr as *u8;
+    for (let i: u64 = 0; i < length; i += 1) {
+        buffer[i] = temp[i];
+    }
+    buffer[length] = 0;
+
+    return string { data: buffer, length: length };
+}
+
+fn string_from_cstr(str: cstr): string {
+    return string_from_buffer(str.data, str.length);
+}
+
+fn string_free(str: *string) {
+    free(str.data);
+
+    str.data = 0 as *u8;
+    str.length = 0;
+}
+
+fn string_concat(lhs: string, rhs: string): string {
+    let buffer = malloc(lhs.length + rhs.length + 1) as *u8;
+
+    // copy the lhs string
+    for (let i: u64 = 0; i < lhs.length; i += 1) {
+        buffer[i] = lhs[i];
+    }
+
+    // copy the rhs string
+    for (let i: u64 = 0; i < rhs.length; i += 1) {
+        buffer[lhs.length + i] = rhs[i];
+    }
+
+    buffer[lhs.length + rhs.length] = 0;
+
+    return string_from_buffer(buffer, lhs.length + rhs.length + 1);
+}
+
+fn string_print(str: string) {
+    fwrite(str.data, 1, str.length, stdout);
+}
